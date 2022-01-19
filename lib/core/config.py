@@ -54,7 +54,7 @@ cfg.MODEL.normal_loss_weight = 1e-1
 cfg.MODEL.edge_loss_weight = 20
 cfg.MODEL.joint_loss_weight = 1e-3
 cfg.MODEL.posenet_pretrained = False
-cfg.MODEL.posenet_path = './experiment/exp_08-20_13:48/checkpoint'
+#cfg.MODEL.posenet_path = './experiment/exp_08-20_13:48/checkpoint'
 
 
 """ Train Detail """
@@ -95,7 +95,7 @@ def _update_dict(k, v):
 def update_config(config_file):
     exp_config = None
     with open(config_file) as f:
-        exp_config = edict(yaml.load(f))
+        exp_config = edict(yaml.safe_load(f))
         for k, v in exp_config.items():
             if k in cfg:
                 if isinstance(v, dict):
