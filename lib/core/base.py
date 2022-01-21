@@ -56,7 +56,8 @@ def prepare_network(args, load_dir='', is_train=True):
         if cfg.MODEL.name == 'pose2mesh_net':
             model = models.pose2mesh_net.get_model(num_joint=main_dataset.joint_num, graph_L=main_dataset.graph_L)
         elif cfg.MODEL.name == 'posenet':
-            model = models.sem_gcn.get_model(main_dataset.joint_num, main_dataset.skeleton, main_dataset.flip_pairs, hid_dim=128, coords_dim = (2, 3), num_layers = 4, nodes_group = None, p_dropout = None)
+            model = models.modulated_gcn.get_model(main_dataset.joint_num, main_dataset.skeleton, main_dataset.flip_pairs, hid_dim=128, coords_dim = (2, 3), num_layers = 4, nodes_group = None, p_dropout = None)
+            #model = models.sem_gcn.get_model(main_dataset.joint_num, main_dataset.skeleton, main_dataset.flip_pairs,hid_dim=128, coords_dim=(2, 3), num_layers=4, nodes_group=None,p_dropout=None)
             #model = models.posenet.get_model(main_dataset.joint_num, hid_dim=4096, num_layer=2, p_dropout=0.5)
         print('# of model parameters: {}'.format(count_parameters(model)))
 
