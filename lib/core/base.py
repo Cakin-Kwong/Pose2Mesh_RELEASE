@@ -56,7 +56,7 @@ def prepare_network(args, load_dir='', is_train=True):
         if cfg.MODEL.name == 'pose2mesh_net':
             model = models.pose2mesh_net.get_model(num_joint=main_dataset.joint_num, graph_L=main_dataset.graph_L)
         elif cfg.MODEL.name == 'posenet':
-            model = models.sem_gcn.get_model(main_dataset.joint_num, main_dataset.skeleton, main_dataset.flip_pairs, hid_dim=128, coords_dim = (2, 3), num_layers = 4, nodes_group = None, p_dropout = None)
+            model = models.PAM.get_model(main_dataset.joint_num, main_dataset.skeleton, main_dataset.flip_pairs, hid_dim=128)
             #model = models.posenet.get_model(main_dataset.joint_num, hid_dim=4096, num_layer=2, p_dropout=0.5)
         print('# of model parameters: {}'.format(count_parameters(model)))
 
@@ -255,10 +255,10 @@ class LiftTrainer:
             img_joint, cam_joint = img_joint.cuda().float(), cam_joint.cuda().float()
             joint_valid = joint_valid.cuda().float()
 
-            # img_joint = img_joint.view(len(img_joint), -1)  # batch x (num_joint*2)
-            # pred_joint = self.model(img_joint)
-            # pred_joint = pred_joint.view(-1, self.num_joint, 3)
+            img_joint = img_joint.view(len(img_joint), -1)  # batch x (num_joint*2)
             pred_joint = self.model(img_joint)
+            pred_joint = pred_joint.view(-1, self.num_joint, 3)
+            #pred_joint = self.model(img_joint)
 
             loss = self.loss(pred_joint, cam_joint, joint_valid)
 
@@ -308,10 +308,10 @@ class LiftTester:
             for i, (img_joint, cam_joint, _) in enumerate(loader):
                 img_joint, cam_joint = img_joint.cuda().float(), cam_joint.cuda().float()
 
-                # img_joint = img_joint.view(len(img_joint), -1)  # batch x (num_joint*2)
-                # pred_joint = self.model(img_joint)
-                # pred_joint = pred_joint.view(-1, self.num_joint, 3)
+                img_joint = img_joint.view(len(img_joint), -1)  # batch x (num_joint*2)
                 pred_joint = self.model(img_joint)
+                pred_joint = pred_joint.view(-1, self.num_joint, 3)
+                #pred_joint = self.model(img_joint)
 
                 mpjpe = self.val_dataset.compute_joint_err(pred_joint, cam_joint)
                 joint_error += mpjpe
