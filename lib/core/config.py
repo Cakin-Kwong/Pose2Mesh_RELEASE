@@ -54,7 +54,7 @@ cfg.MODEL.normal_loss_weight = 1e-1
 cfg.MODEL.edge_loss_weight = 20
 cfg.MODEL.joint_loss_weight = 1e-3
 cfg.MODEL.posenet_pretrained = False
-#cfg.MODEL.posenet_path = './experiment/exp_08-20_13:48/checkpoint'
+cfg.MODEL.posenet_path = './experiment/exp_08-20_13:48/checkpoint'
 
 
 """ Train Detail """
