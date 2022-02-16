@@ -46,6 +46,10 @@ cfg.DATASET.target_joint_set = 'human36'
 cfg.DATASET.workers = 16
 cfg.DATASET.use_gt_input = True
 
+###############SMPL mean data#################
+cfg.DATASET.BASE_DATA_DIR = 'data/base_data'
+##############################################
+
 """ Model """
 cfg.MODEL = edict()
 cfg.MODEL.name = 'pose2mesh_net'

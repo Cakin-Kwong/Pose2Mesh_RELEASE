@@ -83,8 +83,8 @@ class Human36M(torch.utils.data.Dataset):
             self.datalist_pose2d_det = self.load_pose2d_det(det_2d_data_path, skip_img_path)
             print("Check lengths of annotation and detection output: ", len(self.datalist), len(self.datalist_pose2d_det))
 
-        self.graph_Adj, self.graph_L, self.graph_perm, self.graph_perm_reverse = \
-            build_coarse_graphs(self.mesh_model.face, self.joint_num, self.skeleton, self.flip_pairs, levels=9)
+        # self.graph_Adj, self.graph_L, self.graph_perm, self.graph_perm_reverse = \
+        #     build_coarse_graphs(self.mesh_model.face, self.joint_num, self.skeleton, self.flip_pairs, levels=9)
 
     def load_pose2d_det(self, data_path, skip_list):
         pose_list = []

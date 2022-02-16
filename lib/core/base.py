@@ -54,9 +54,9 @@ def prepare_network(args, load_dir='', is_train=True):
     if is_train or load_dir:
         print(f"==> Preparing {cfg.MODEL.name} MODEL...")
         if cfg.MODEL.name == 'pose2mesh_net':
-            model = models.pose2mesh_net.get_model(num_joint=main_dataset.joint_num, graph_L=main_dataset.graph_L)
+            model = models.pose2mesh_net.get_model(num_joint=main_dataset.joint_num, skeleton=main_dataset.skeleton)
         elif cfg.MODEL.name == 'posenet':
-            model = models.posenet.get_model(main_dataset.joint_num, hid_dim=4096, num_layer=2, p_dropout=0.5)
+            model = models.GraFormer.get_model(main_dataset.joint_num, main_dataset.skeleton,hid_dim=128)
         print('# of model parameters: {}'.format(count_parameters(model)))
 
     if is_train:
@@ -127,7 +127,7 @@ class Trainer:
 
             # model
             pred_mesh, lift_pose = self.model(input_pose)  # B x 12288 x 3
-            pred_mesh = pred_mesh[:, self.main_dataset.graph_perm_reverse[:self.main_dataset.mesh_model.face.max() + 1], :]  # B x 6890 x 3
+            # pred_mesh = pred_mesh[:, self.main_dataset.graph_perm_reverse[:self.main_dataset.mesh_model.face.max() + 1], :]  # B x 6890 x 3
             pred_pose = torch.matmul(self.J_regressor[None, :, :], pred_mesh * 1000)
 
             # loss
@@ -198,7 +198,7 @@ class Tester:
                 input_pose, gt_pose3d, gt_mesh = inputs['pose2d'].cuda(), targets['reg_pose3d'].cuda(), targets['mesh'].cuda()
 
                 pred_mesh, pred_pose = self.model(input_pose)
-                pred_mesh = pred_mesh[:, self.val_dataset.graph_perm_reverse[:self.val_dataset.mesh_model.face.max() + 1], :]
+                # pred_mesh = pred_mesh[:, self.val_dataset.graph_perm_reverse[:self.val_dataset.mesh_model.face.max() + 1], :]
                 pred_mesh, gt_mesh = pred_mesh * 1000, gt_mesh * 1000
 
                 pred_pose = torch.matmul(self.J_regressor[None, :, :], pred_mesh)
@@ -254,8 +254,8 @@ class LiftTrainer:
             img_joint, cam_joint = img_joint.cuda().float(), cam_joint.cuda().float()
             joint_valid = joint_valid.cuda().float()
 
-            img_joint = img_joint.view(len(img_joint), -1)  # batch x (num_joint*2)
-            pred_joint = self.model(img_joint)
+            #img_joint = img_joint.view(len(img_joint), -1)  # batch x (num_joint*2)
+            pred_joint, _ = self.model(img_joint)
             pred_joint = pred_joint.view(-1, self.num_joint, 3)
 
             loss = self.loss(pred_joint, cam_joint, joint_valid)
@@ -306,8 +306,8 @@ class LiftTester:
             for i, (img_joint, cam_joint, _) in enumerate(loader):
                 img_joint, cam_joint = img_joint.cuda().float(), cam_joint.cuda().float()
 
-                img_joint = img_joint.view(len(img_joint), -1)  # batch x (num_joint*2)
-                pred_joint = self.model(img_joint)
+                #img_joint = img_joint.view(len(img_joint), -1)  # batch x (num_joint*2)
+                pred_joint, _ = self.model(img_joint)
                 pred_joint = pred_joint.view(-1, self.num_joint, 3)
 
                 mpjpe = self.val_dataset.compute_joint_err(pred_joint, cam_joint)
