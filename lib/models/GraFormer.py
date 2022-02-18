@@ -245,7 +245,7 @@ class GraFormer(nn.Module):
         self.mask = torch.ones(1, 1, adj.shape[0], dtype=torch.bool).cuda()
 
         _gconv_input = ChebConv(in_c=coords_dim[0], out_c=hid_dim, K=2)
-        _mlpse_layers = []
+        _mlp_layers = []
         # _gconv_layers = []
         _attention_layer = []
 
@@ -257,12 +257,12 @@ class GraFormer(nn.Module):
         for i in range(num_layers):
             # _gconv_layers.append(_ResChebGC(adj=self.adj, input_dim=hid_dim, output_dim=hid_dim,
             #                                 hid_dim=hid_dim, p_dropout=0.1))
-            _mlpse_layers.append(MLP_SE(hid_dim, n_pts, hid_dim))
+            _mlp_layers.append(PositionwiseFeedForward(128, 256, 0.1))
             _attention_layer.append(GraAttenLayer(dim_model, c(attn), c(gcn), dropout))
 
         self.gconv_input = _gconv_input
         # self.gconv_layers = nn.ModuleList(_gconv_layers)
-        self.mlpse_layers = nn.ModuleList(_mlpse_layers)
+        self.mlp_layers = nn.ModuleList(_mlp_layers)
         self.atten_layers = nn.ModuleList(_attention_layer)
         self.gconv_output = ChebConv(in_c=dim_model, out_c=3, K=2)
 
@@ -274,7 +274,7 @@ class GraFormer(nn.Module):
         for i in range(self.n_layers):
             out = self.atten_layers[i](out, self.mask)
             # out = self.gconv_layers[i](out)
-            out = self.mlpse_layers[i](out)
+            out = self.mlp_layers[i](out)
 
         pose_feature = out
         out = self.gconv_output(out, self.adj)
