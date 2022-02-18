@@ -7,47 +7,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 import copy,math
 from models.ChebConv import ChebConv, _ResChebGC
-from models.GraFormer import MultiHeadedAttention, GraphNet, GraAttenLayer
+from models.GraFormer import MultiHeadedAttention, GraphNet, GraAttenLayer, MLP_SE
 
 
 
 BASE_DATA_DIR = cfg.DATASET.BASE_DATA_DIR
 # SMPL_MEAN_PARAMS = osp.join(BASE_DATA_DIR, 'smpl_mean_params.npz')
 SMPL_MEAN_vertices = osp.join(BASE_DATA_DIR, 'smpl_mean_vertices.npy')
-
-
-class MLP_SE(nn.Module):
-    def __init__(self, in_features, in_channel, hidden_features=None):
-        super().__init__()
-        self.in_channel = in_channel
-        self.fc1 = nn.Linear(in_features, hidden_features)
-        self.fc2 = nn.Linear(hidden_features, in_features)
-
-        self.fc_down1 = nn.Linear(in_features*in_channel, in_channel)
-        self.fc_down2 = nn.Linear(in_channel, 2*in_channel)
-        self.fc_down3 = nn.Linear(2*in_channel, in_channel)
-        self.sigmoid = nn.Sigmoid()
-
-        self.act = nn.GELU()
-
-    def forward(self, x):
-        B = x.shape[0]
-        x = self.fc1(x)
-        x = self.act(x)
-        x = self.fc2(x)
-        ####up_stream
-        x1 = x
-        ### down_stream
-        x2 = x.view(B,-1)
-        x2 = self.fc_down1(x2).view(B,1,-1)
-        x2 = self.act(x2)
-        x2 = self.fc_down2(x2)
-        x2 = self.act(x2)
-        x2 = self.fc_down3(x2)
-        x2 = self.sigmoid(x2)
-        #### out
-        x = ((x1.transpose(1,2))*x2).transpose(1,2)
-        return x
 
 
 class Meshnet(nn.Module):
@@ -64,8 +30,6 @@ class Meshnet(nn.Module):
         self.up_feature = nn.Linear(embed_dim, embed_dim)
         self.up_linear = nn.Linear(689 * 2, embed_dim)
 
-
-
         _mlpse_layers = []
         _attention_layer = []
 
@@ -80,7 +44,7 @@ class Meshnet(nn.Module):
         self.mlpse_layers = nn.ModuleList(_mlpse_layers)
         self.atten_layers = nn.ModuleList(_attention_layer)
 
-        self.relu = nn.ReLU()
+        self.gelu = nn.GELU()
         self.norm = nn.LayerNorm(embed_dim)
 
         self.d_conv = nn.Conv1d(self.num_joints + 15, 3, kernel_size=3, padding=1)
@@ -108,7 +72,7 @@ class Meshnet(nn.Module):
         ####### after mesh regression module, x_out [B, J+T, emb_dim]
         x_out = x
         x_out = self.d_linear(x_out)
-        x_out = self.relu(x_out)
+        x_out = self.gelu(x_out)
         x_out = self.d_conv(x_out).transpose(1, 2)
         x_out = x_out + init_vertices
 

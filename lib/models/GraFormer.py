@@ -73,6 +73,39 @@ class LayerNorm(nn.Module):
         return self.a_2 * (x - mean) / (std + self.eps) + self.b_2
 
 
+class MLP_SE(nn.Module):
+    def __init__(self, in_features, in_channel, hidden_features=None):
+        super().__init__()
+        self.in_channel = in_channel
+        self.fc1 = nn.Linear(in_features, hidden_features)
+        self.fc2 = nn.Linear(hidden_features, in_features)
+
+        self.fc_down1 = nn.Linear(in_features*in_channel, in_channel)
+        self.fc_down2 = nn.Linear(in_channel, 2*in_channel)
+        self.fc_down3 = nn.Linear(2*in_channel, in_channel)
+        self.sigmoid = nn.Sigmoid()
+
+        self.act = nn.GELU()
+
+    def forward(self, x):
+        B = x.shape[0]
+        x = self.fc1(x)
+        x = self.act(x)
+        x = self.fc2(x)
+        ####up_stream
+        x1 = x
+        ### down_stream
+        x2 = x.view(B,-1)
+        x2 = self.fc_down1(x2).view(B,1,-1)
+        x2 = self.act(x2)
+        x2 = self.fc_down2(x2)
+        x2 = self.act(x2)
+        x2 = self.fc_down3(x2)
+        x2 = self.sigmoid(x2)
+        #### out
+        x = ((x1.transpose(1,2))*x2).transpose(1,2)
+        return x
+
 class SublayerConnection(nn.Module):
 
     def __init__(self, size, dropout):
@@ -204,15 +237,16 @@ class GraphNet(nn.Module):
 
 
 class GraFormer(nn.Module):
-    def __init__(self, adj, hid_dim=128, coords_dim=(2, 3), num_layers=4,
-                 n_head=4, dropout=0.1, n_pts=17, pretrained=False):
+    def __init__(self, adj, hid_dim=128, coords_dim=(2, 3), num_layers=5,
+                 n_head=4, dropout=0.25, n_pts=17, pretrained=False):
         super(GraFormer, self).__init__()
         self.n_layers = num_layers
         self.adj = adj
         self.mask = torch.ones(1, 1, adj.shape[0], dtype=torch.bool).cuda()
 
         _gconv_input = ChebConv(in_c=coords_dim[0], out_c=hid_dim, K=2)
-        _gconv_layers = []
+        _mlpse_layers = []
+        # _gconv_layers = []
         _attention_layer = []
 
         dim_model = hid_dim
@@ -221,12 +255,14 @@ class GraFormer(nn.Module):
         gcn = GraphNet(in_features=dim_model, out_features=dim_model, n_pts=n_pts)
 
         for i in range(num_layers):
-            _gconv_layers.append(_ResChebGC(adj=self.adj, input_dim=hid_dim, output_dim=hid_dim,
-                                            hid_dim=hid_dim, p_dropout=0.1))
+            # _gconv_layers.append(_ResChebGC(adj=self.adj, input_dim=hid_dim, output_dim=hid_dim,
+            #                                 hid_dim=hid_dim, p_dropout=0.1))
+            _mlpse_layers.append(MLP_SE(hid_dim, n_pts, hid_dim))
             _attention_layer.append(GraAttenLayer(dim_model, c(attn), c(gcn), dropout))
 
         self.gconv_input = _gconv_input
-        self.gconv_layers = nn.ModuleList(_gconv_layers)
+        # self.gconv_layers = nn.ModuleList(_gconv_layers)
+        self.mlpse_layers = nn.ModuleList(_mlpse_layers)
         self.atten_layers = nn.ModuleList(_attention_layer)
         self.gconv_output = ChebConv(in_c=dim_model, out_c=3, K=2)
 
@@ -237,7 +273,8 @@ class GraFormer(nn.Module):
         out = self.gconv_input(x, self.adj)
         for i in range(self.n_layers):
             out = self.atten_layers[i](out, self.mask)
-            out = self.gconv_layers[i](out)
+            # out = self.gconv_layers[i](out)
+            out = self.mlpse_layers[i](out)
 
         pose_feature = out
         out = self.gconv_output(out, self.adj)
