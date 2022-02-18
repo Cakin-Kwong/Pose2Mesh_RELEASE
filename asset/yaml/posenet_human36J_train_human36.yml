@@ -17,10 +17,10 @@ TRAIN:
     begin_epoch: 1
     end_epoch: 60
     scheduler: 'step'
-    lr: 0.001
-    lr_step: [30]
+    lr: 0.0005
+    lr_step: [10, 20, 30, 40, 50]
     lr_factor: 0.5
-    optimizer: 'rmsprop'
+    optimizer: 'adam'
 
 AUG:
     flip: True
