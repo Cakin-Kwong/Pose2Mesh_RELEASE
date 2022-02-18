@@ -73,6 +73,28 @@ class LayerNorm(nn.Module):
         return self.a_2 * (x - mean) / (std + self.eps) + self.b_2
 
 
+class Conv(nn.Module):
+    def __init__(self, in_channel, drop=0.):
+        super().__init__()
+
+        self.channel = in_channel
+        self.conv1 = nn.Conv1d(in_channel, 32, 1)
+        self.act = nn.GELU()
+        self.conv2 = nn.Conv1d(in_channel, 32, kernel_size=3, padding= 1)
+        self.conv3 = nn.Conv1d(32, in_channel, kernel_size=3, padding=1)
+        self.drop = nn.Dropout(drop)
+
+    def forward(self, x):
+        x1 =self.conv1(x)
+        x1 = self.act(x1)
+        x1 = self.drop(x1)
+        x2 = self.conv2(x)
+        x2 = self.act(x2)
+        x2 = self.drop(x2)
+        x = x1 + x2
+        x = self.conv3(x)
+        return x
+
 class MLP_SE(nn.Module):
     def __init__(self, in_features, in_channel, hidden_features=None):
         super().__init__()
@@ -120,15 +142,16 @@ class SublayerConnection(nn.Module):
 class GraAttenLayer(nn.Module):
     "Encoder is made up of self-attn and feed forward (defined below)"
 
-    def __init__(self, size, self_attn, feed_forward, dropout):
+    def __init__(self, size, self_attn, feed_forward, dropout, in_channel):
         super(GraAttenLayer, self).__init__()
         self.self_attn = self_attn
         self.feed_forward = feed_forward
+        self.conv = Conv(in_channel, dropout)
         self.sublayer = clones(SublayerConnection(size, dropout), 2)
         self.size = size
 
     def forward(self, x, mask):
-        x = self.sublayer[0](x, lambda x: self.self_attn(x, x, x, mask))
+        x = self.sublayer[0](x, lambda x: self.self_attn(x, x, x, mask) + self.conv(x))
         return self.sublayer[1](x, self.feed_forward)
 
 
@@ -258,7 +281,7 @@ class GraFormer(nn.Module):
             # _gconv_layers.append(_ResChebGC(adj=self.adj, input_dim=hid_dim, output_dim=hid_dim,
             #                                 hid_dim=hid_dim, p_dropout=0.1))
             _mlpse_layers.append(MLP_SE(hid_dim, n_pts, hid_dim))
-            _attention_layer.append(GraAttenLayer(dim_model, c(attn), c(gcn), dropout))
+            _attention_layer.append(GraAttenLayer(dim_model, c(attn), c(gcn), dropout, n_pts))
 
         self.gconv_input = _gconv_input
         # self.gconv_layers = nn.ModuleList(_gconv_layers)

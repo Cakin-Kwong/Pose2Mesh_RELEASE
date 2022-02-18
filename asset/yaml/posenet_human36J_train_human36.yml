@@ -15,12 +15,12 @@ TRAIN:
     batch_size: 64
     shuffle: True
     begin_epoch: 1
-    end_epoch: 60
+    end_epoch: 50
     scheduler: 'step'
-    lr: 0.001
-    lr_step: [30]
-    lr_factor: 0.5
-    optimizer: 'rmsprop'
+    lr: 0.0005
+    lr_step: [10,20,30,40,50]
+    lr_factor: 0.2
+    optimizer: 'adam'
 
 AUG:
     flip: True
