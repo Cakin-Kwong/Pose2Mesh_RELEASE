@@ -17,8 +17,8 @@ SMPL_MEAN_vertices = osp.join(BASE_DATA_DIR, 'smpl_mean_vertices.npy')
 
 
 class Meshnet(nn.Module):
-    def __init__(self, num_joints=17, embed_dim=128, num_layers=4,
-                 n_head=4, dropout=0.1):
+    def __init__(self, num_joints=17, embed_dim=128, num_layers=5,
+                 n_head=4, dropout=0.25):
         super(Meshnet, self).__init__()
         self.num_joints = num_joints
         self.embed_dim = embed_dim
