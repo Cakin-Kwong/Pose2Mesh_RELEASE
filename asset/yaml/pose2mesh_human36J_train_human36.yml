@@ -11,9 +11,9 @@ MODEL:
     input_shape: [384, 288]
     normal_loss_weight: 0.01
     edge_loss_weight: 0.01
-    joint_loss_weight: 0.01
+    joint_loss_weight: 0.1
     posenet_pretrained: True
-    posenet_path: './experiment/chev/checkpoint/best.pth.tar'
+    posenet_path: './experiment/graformer_se_posenet/checkpoint/best.pth.tar'
 
 TRAIN:
     print_freq: 10

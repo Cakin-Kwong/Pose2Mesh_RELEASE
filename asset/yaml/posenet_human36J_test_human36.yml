@@ -29,4 +29,4 @@ AUG:
 TEST:
     batch_size: 64
     shuffle: False
-    weight_path: './experiment/gtrs_posenet_human36J_train_human36/checkpoint/best.pth.tar'
+    weight_path: './experiment/graformer_se_posenet/checkpoint/best.pth.tar'
