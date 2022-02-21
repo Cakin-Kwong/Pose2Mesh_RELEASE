@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import copy,math
 from models.ChebConv import ChebConv, _ResChebGC
-from models.GraFormer import MultiHeadedAttention, GraphNet, GraAttenLayer, MLP_SE
+from models.GraFormer import MultiHeadedAttention, GraphNet, GraAttenLayer, MLP_SE, PositionwiseFeedForward
 
 
 
@@ -30,7 +30,8 @@ class Meshnet(nn.Module):
         self.up_feature = nn.Linear(embed_dim, embed_dim)
         self.up_linear = nn.Linear(689 * 2, embed_dim)
 
-        _mlpse_layers = []
+        #_mlpse_layers = []
+        _mlp_layers = []
         _attention_layer = []
 
         c = copy.deepcopy
@@ -38,10 +39,12 @@ class Meshnet(nn.Module):
         gcn = GraphNet(in_features=embed_dim, out_features=embed_dim, n_pts=self.num_joints + 15)
 
         for i in range(num_layers):
-            _mlpse_layers.append(MLP_SE(embed_dim, self.num_joints + 15, embed_dim))
+            #_mlpse_layers.append(MLP_SE(embed_dim, self.num_joints + 15, embed_dim))
+            _mlp_layers.append(PositionwiseFeedForward(128, 256, 0.1))
             _attention_layer.append(GraAttenLayer(embed_dim, c(attn), c(gcn), dropout))
 
-        self.mlpse_layers = nn.ModuleList(_mlpse_layers)
+        #self.mlpse_layers = nn.ModuleList(_mlpse_layers)
+        self.mlp_layers = nn.ModuleList(_mlp_layers)
         self.atten_layers = nn.ModuleList(_attention_layer)
 
         self.gelu = nn.GELU()
@@ -65,7 +68,7 @@ class Meshnet(nn.Module):
 
         for i in range(self.n_layers):
             x = self.atten_layers[i](x, self.mask)
-            x = self.mlpse_layers[i](x)
+            x = self.mlp_layers[i](x)
 
         x = self.norm(x)
 
