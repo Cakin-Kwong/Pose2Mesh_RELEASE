@@ -40,7 +40,7 @@ class Meshnet(nn.Module):
 
         for i in range(num_layers):
             #_mlpse_layers.append(MLP_SE(embed_dim, self.num_joints + 15, embed_dim))
-            _mlp_layers.append(PositionwiseFeedForward(128, 256, 0.1))
+            _mlp_layers.append(PositionwiseFeedForward(128, 256, 0.25))
             _attention_layer.append(GraAttenLayer(embed_dim, c(attn), c(gcn), dropout))
 
         #self.mlpse_layers = nn.ModuleList(_mlpse_layers)

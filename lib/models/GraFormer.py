@@ -257,7 +257,7 @@ class GraFormer(nn.Module):
         for i in range(num_layers):
             # _gconv_layers.append(_ResChebGC(adj=self.adj, input_dim=hid_dim, output_dim=hid_dim,
             #                                 hid_dim=hid_dim, p_dropout=0.1))
-            _mlp_layers.append(PositionwiseFeedForward(128, 256, 0.1))
+            _mlp_layers.append(PositionwiseFeedForward(128, 256, 0.25))
             _attention_layer.append(GraAttenLayer(dim_model, c(attn), c(gcn), dropout))
 
         self.gconv_input = _gconv_input
