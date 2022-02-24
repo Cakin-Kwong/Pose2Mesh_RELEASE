@@ -114,7 +114,7 @@ class Meshnet(nn.Module):
 
         return x_out
 
-def get_model(num_joint=17, embed_dim=128, num_layers=4, n_head=4, dropout=0.1):
+def get_model(num_joint=17, embed_dim=128, num_layers=5, n_head=4, dropout=0.25):
     model = Meshnet(num_joint, embed_dim, num_layers, n_head, dropout)
     return model
 
