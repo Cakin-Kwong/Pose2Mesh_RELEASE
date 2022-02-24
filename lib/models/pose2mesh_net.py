@@ -27,7 +27,7 @@ class FlatPose2Mesh(nn.Module):
 
         self.num_joint = num_joint
         self.pose_lifter = GraFormer.get_model(num_joint, skeleton, hid_dim=128, pretrained=cfg.MODEL.posenet_pretrained)
-        self.pose2mesh = MRM.get_model(num_joint=num_joint, embed_dim=128, num_layers=4, n_head=4, dropout=0.1)
+        self.pose2mesh = MRM.get_model(num_joint=num_joint, embed_dim=128, num_layers=5, n_head=4, dropout=0.25)
 
     def forward(self, pose2d):
         pose3d, feature = self.pose_lifter(pose2d)
