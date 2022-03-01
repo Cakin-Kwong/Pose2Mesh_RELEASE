@@ -207,6 +207,7 @@ class GraFormer(nn.Module):
     def __init__(self, adj, hid_dim=128, coords_dim=(2, 3), num_layers=5,
                  n_head=4, dropout=0.25, n_pts=17, pretrained=False):
         super(GraFormer, self).__init__()
+        n_pts = adj.size(0)
         self.n_layers = num_layers
         self.adj = adj
         self.mask = torch.ones(1, 1, adj.shape[0], dtype=torch.bool).cuda()
