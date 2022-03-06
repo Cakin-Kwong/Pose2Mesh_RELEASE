@@ -262,7 +262,7 @@ def build_adj(joint_num, skeleton):
 
 def get_model(joint_num, skeleton, hid_dim=128, pretrained=False):
     joint_adj = build_adj(joint_num, skeleton)
-    model = GraFormer(adj=joint_adj.cuda(), hid_dim=hid_dim).cuda()
+    model = GraFormer(adj=joint_adj.cuda(), hid_dim=hid_dim, pretrained=pretrained).cuda()
     return model
 
 if __name__ == '__main__':
