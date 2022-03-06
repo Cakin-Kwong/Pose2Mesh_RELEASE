@@ -8,6 +8,7 @@ import copy, math
 import torch.nn.functional as F
 from torch.nn.parameter import Parameter
 from funcs_utils import load_checkpoint
+from core.config import cfg as cfg
 #from network.ChebConv import ChebConv, _ResChebGC
 from models.ChebConv import ChebConv, _ResChebGC
 #from ChebConv import ChebConv, _ResChebGC
