@@ -10,6 +10,7 @@ from torch.nn.parameter import Parameter
 from funcs_utils import load_checkpoint
 #from network.ChebConv import ChebConv, _ResChebGC
 from models.ChebConv import ChebConv, _ResChebGC
+from timm.models.layers import DropPath
 #from ChebConv import ChebConv, _ResChebGC
 
 
@@ -75,13 +76,14 @@ class LayerNorm(nn.Module):
 
 class SublayerConnection(nn.Module):
 
-    def __init__(self, size, dropout):
+    def __init__(self, size, droppath):
         super(SublayerConnection, self).__init__()
         self.norm = LayerNorm(size)
-        self.dropout = nn.Dropout(dropout)
+        #self.dropout = nn.Dropout(dropout)
+        self.droppath = DropPath(droppath)
 
     def forward(self, x, sublayer):
-        return x + self.dropout(sublayer(self.norm(x)))
+        return x + self.droppath(sublayer(self.norm(x)))
 
 
 class GraAttenLayer(nn.Module):
@@ -202,43 +204,73 @@ class GraphNet(nn.Module):
         X_1 = self.gconv2(X_0, self.A_hat)
         return X_1
 
+class Block(nn.Module):
+    def __init__(self, adj=None, hid_dim=128, n_head=4, dropout=0.5, drop_path=0.5):
+        super(Block, self).__init__()
+        self.DropPath = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+        self.mask = torch.ones(1, 1, adj.shape[0], dtype=torch.bool).cuda()
+        attn = MultiHeadedAttention(n_head, hid_dim)
+        gcn = GraphNet(in_features=hid_dim, out_features=hid_dim, n_pts=adj.shape[0])
+        self.GraAttenLayer = GraAttenLayer(hid_dim, attn, gcn, dropout)
+        self.gconv = _ResChebGC(adj=adj, input_dim=hid_dim, output_dim= hid_dim, hid_dim=hid_dim, p_dropout=dropout)
+
+    def forward(self, x):
+        out = x + self.DropPath(self.GraAttenLayer(x, mask=self.mask))
+        out = out + self.DropPath(self.gconv(out))
+        return out
+
+class G_Block(nn.Module):
+
+    def __init__(self, adj, hid_dim=128, n_head=4, dropout=0.2, drop_path=0.2):
+        super(G_Block, self).__init__()
+        self.Block1 = Block(adj=adj, hid_dim=hid_dim, n_head=n_head, dropout=dropout, drop_path=drop_path)
+        self.Block2 = Block(adj=adj, hid_dim=hid_dim, n_head=n_head, dropout=dropout, drop_path=drop_path)
+        self.Block3 = Block(adj=adj, hid_dim=hid_dim, n_head=n_head, dropout=dropout, drop_path=drop_path)
+        self.conv1 = nn.Conv2d(3, 1, 1)
+        self.norm = nn.LayerNorm(hid_dim)
+        self.gelu = nn.GELU()
+
+    def forward(self, x):
+        # B = x.shape[0]
+        x1 = self.Block1(x).unsqueeze(1)
+        x2 = self.Block2(x).unsqueeze(1)
+        x3 = self.Block3(x).unsqueeze(1)
+
+        x = torch.cat((x1,x2,x3), dim = 1)
+        x = self.conv1(x).squeeze(1)
+        x = self.norm(x)
+        x = self.gelu(x)
+
+        return x
+
 
 class GraFormer(nn.Module):
-    def __init__(self, adj, hid_dim=128, coords_dim=(2, 3), num_layers=5,
-                 n_head=4, dropout=0.25, n_pts=17, pretrained=False):
+    def __init__(self, adj, hid_dim=128, coords_dim=(2, 3), num_layers=3,
+                 n_head=4, dropout=0.2, drop_path=0.2, pretrained=False):
         super(GraFormer, self).__init__()
-        n_pts = adj.size(0)
         self.n_layers = num_layers
         self.adj = adj
-        self.mask = torch.ones(1, 1, adj.shape[0], dtype=torch.bool).cuda()
 
-        _gconv_input = ChebConv(in_c=coords_dim[0], out_c=hid_dim, K=2)
-        _gconv_layers = []
-        _attention_layer = []
-
-        dim_model = hid_dim
-        c = copy.deepcopy
-        attn = MultiHeadedAttention(n_head, dim_model)
-        gcn = GraphNet(in_features=dim_model, out_features=dim_model, n_pts=n_pts)
+        self.gconv_input = ChebConv(in_c=coords_dim[0], out_c=hid_dim, K=2)
+        self.norm = nn.LayerNorm(hid_dim)
+        self.gelu = nn.GELU()
+        _GBlock = []
 
         for i in range(num_layers):
-            _gconv_layers.append(_ResChebGC(adj=self.adj, input_dim=hid_dim, output_dim=hid_dim,
-                                            hid_dim=hid_dim, p_dropout=0.1))
-            _attention_layer.append(GraAttenLayer(dim_model, c(attn), c(gcn), dropout))
+            _GBlock.append(G_Block(adj=adj, hid_dim=hid_dim, n_head=n_head, dropout=dropout, drop_path=drop_path))
 
-        self.gconv_input = _gconv_input
-        self.gconv_layers = nn.ModuleList(_gconv_layers)
-        self.atten_layers = nn.ModuleList(_attention_layer)
-        self.gconv_output = ChebConv(in_c=dim_model, out_c=3, K=2)
+        self.GBlock = nn.ModuleList(_GBlock)
+        self.gconv_output = ChebConv(in_c=hid_dim, out_c=3, K=2)
 
         if pretrained:
             self._load_pretrained_model()
 
     def forward(self, x):
         out = self.gconv_input(x, self.adj)
+        out = self.norm(out)
+        out = self.gelu(out)
         for i in range(self.n_layers):
-            out = self.atten_layers[i](out, self.mask)
-            out = self.gconv_layers[i](out)
+            out = out + self.GBlock[i](out)
 
         pose_feature = out
         out = self.gconv_output(out, self.adj)
@@ -262,7 +294,7 @@ def build_adj(joint_num, skeleton):
 
 def get_model(joint_num, skeleton, hid_dim=128, pretrained=False):
     joint_adj = build_adj(joint_num, skeleton)
-    model = GraFormer(adj=joint_adj.cuda(), hid_dim=hid_dim).cuda()
+    model = GraFormer(adj=joint_adj.cuda(), hid_dim=hid_dim, pretrained=pretrained).cuda()
     return model
 
 if __name__ == '__main__':
