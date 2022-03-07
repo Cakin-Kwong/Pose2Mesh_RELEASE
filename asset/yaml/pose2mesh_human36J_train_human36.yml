@@ -13,7 +13,7 @@ MODEL:
     edge_loss_weight: 0.1
     joint_loss_weight: 0.001
     posenet_pretrained: True
-    posenet_path: './experiment/chev/checkpoint/best.pth.tar'
+    posenet_path: './experiment/combine_pose/checkpoint/best.pth.tar'
 
 TRAIN:
     print_freq: 10

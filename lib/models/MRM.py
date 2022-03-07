@@ -8,6 +8,7 @@ import torch.nn.functional as F
 import copy,math
 from models.ChebConv import ChebConv, _ResChebGC
 from models.GraFormer import MultiHeadedAttention, GraphNet, GraAttenLayer
+from timm.models.layers import DropPath
 
 
 
@@ -50,43 +51,77 @@ class MLP_SE(nn.Module):
         return x
 
 
+class Block(nn.Module):
+    def __init__(self, in_channel=17, hid_dim=128, n_head=4, dropout=0.5, drop_path=0.5, mlp_ratio=4.):
+        super(Block, self).__init__()
+        self.in_channel = in_channel
+        self.DropPath = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+        self.mask = torch.ones(1, 1, in_channel, dtype=torch.bool).cuda()
+        attn = MultiHeadedAttention(n_head, hid_dim)
+        gcn = GraphNet(in_features=hid_dim, out_features=hid_dim, n_pts=in_channel)
+        mlp_hidden_dim = int(hid_dim * mlp_ratio)
+        self.GraAttenLayer = GraAttenLayer(hid_dim, attn, gcn, dropout)
+        self.norm = nn.LayerNorm(hid_dim)
+        self.mlpse = MLP_SE(in_features=hid_dim, in_channel=self.in_channel, hidden_features=mlp_hidden_dim)
+
+    def forward(self, x):
+        out = x + self.DropPath(self.GraAttenLayer(x, mask=self.mask))
+        out = out + self.DropPath(self.mlpse(self.norm(out)))
+        return out
+
+class G_Block(nn.Module):
+
+    def __init__(self, in_channel=17, hid_dim=128, n_head=4, dropout=0.2, drop_path=0.2, mlp_ratio=4.):
+        super(G_Block, self).__init__()
+        self.Block1 = Block(in_channel=in_channel, hid_dim=hid_dim, n_head=n_head, dropout=dropout, drop_path=drop_path, mlp_ratio=mlp_ratio)
+        self.Block2 = Block(in_channel=in_channel, hid_dim=hid_dim, n_head=n_head, dropout=dropout, drop_path=drop_path, mlp_ratio=mlp_ratio)
+        self.Block3 = Block(in_channel=in_channel, hid_dim=hid_dim, n_head=n_head, dropout=dropout, drop_path=drop_path, mlp_ratio=mlp_ratio)
+
+        self.conv1 = nn.Conv2d(3, 1, 1)
+        self.norm = nn.LayerNorm(hid_dim)
+        self.gelu = nn.GELU()
+
+    def forward(self, x):
+        # B = x.shape[0]
+        x1 = self.Block1(x).unsqueeze(1)
+        x2 = self.Block2(x).unsqueeze(1)
+        x3 = self.Block3(x).unsqueeze(1)
+
+        x = torch.cat((x1,x2,x3), dim = 1)
+        x = self.conv1(x).squeeze(1)
+        x = self.norm(x)
+        x = self.gelu(x)
+
+        return x
+
 class Meshnet(nn.Module):
-    def __init__(self, num_joints=17, embed_dim=128, num_layers=5,
-                 n_head=4, dropout=0.25):
+    def __init__(self, num_joints=17, hid_dim=128, num_layers=3,
+                 n_head=4, dropout=0.2, drop_path=0.2, mlp_ratio=4.):
         super(Meshnet, self).__init__()
         self.num_joints = num_joints
-        self.embed_dim = embed_dim
+        self.hid_dim = hid_dim
         self.n_layers = num_layers
 
         init_vertices = torch.from_numpy(np.load(SMPL_MEAN_vertices)).unsqueeze(0)
         self.register_buffer('init_vertices', init_vertices)
 
-        self.up_feature = nn.Linear(embed_dim, embed_dim)
-        self.up_linear = nn.Linear(689 * 2, embed_dim)
+        self.up_feature = nn.Linear(hid_dim, hid_dim)
+        self.up_linear = nn.Linear(689 * 2, hid_dim)
 
 
-
-        _mlpse_layers = []
-        _attention_layer = []
-
-        c = copy.deepcopy
-        attn = MultiHeadedAttention(n_head, embed_dim)
-        gcn = GraphNet(in_features=embed_dim, out_features=embed_dim, n_pts=self.num_joints + 15)
+        _GBlock = []
 
         for i in range(num_layers):
-            _mlpse_layers.append(MLP_SE(embed_dim, self.num_joints + 15, embed_dim))
-            _attention_layer.append(GraAttenLayer(embed_dim, c(attn), c(gcn), dropout))
+            _GBlock.append(G_Block(in_channel=self.num_joints + 15, hid_dim=hid_dim, n_head=n_head, dropout=dropout, drop_path=drop_path, mlp_ratio=mlp_ratio))
 
-        self.mlpse_layers = nn.ModuleList(_mlpse_layers)
-        self.atten_layers = nn.ModuleList(_attention_layer)
+        self.GBlock = nn.ModuleList(_GBlock)
 
-        self.relu = nn.ReLU()
-        self.norm = nn.LayerNorm(embed_dim)
+        self.norm = nn.LayerNorm(hid_dim)
+        self.gelu = nn.GELU()
+
 
         self.d_conv = nn.Conv1d(self.num_joints + 15, 3, kernel_size=3, padding=1)
-        self.d_linear = nn.Linear(self.embed_dim, 6890)
-
-        self.mask = torch.ones(1, 1, self.num_joints + 15, dtype=torch.bool).cuda()
+        self.d_linear = nn.Linear(self.hid_dim, 6890)
 
 
     def forward(self, feature):
@@ -100,21 +135,20 @@ class Meshnet(nn.Module):
         x = torch.cat((feature, mean_smpl), dim=1)
 
         for i in range(self.n_layers):
-            x = self.atten_layers[i](x, self.mask)
-            x = self.mlpse_layers[i](x)
+            x = x + self.GBlock[i](x)
 
         x = self.norm(x)
 
         ####### after mesh regression module, x_out [B, J+T, emb_dim]
         x_out = x
         x_out = self.d_linear(x_out)
-        x_out = self.relu(x_out)
+        x_out = self.gelu(x_out)
         x_out = self.d_conv(x_out).transpose(1, 2)
         x_out = x_out + init_vertices
 
         return x_out
 
-def get_model(num_joint=17, embed_dim=128, num_layers=5, n_head=4, dropout=0.25):
-    model = Meshnet(num_joint, embed_dim, num_layers, n_head, dropout)
+def get_model(num_joints=17, hid_dim=128, num_layers=3, n_head=4, dropout=0.22, drop_path=0.2, mlp_ratio=4.):
+    model = Meshnet(num_joints=num_joints, hid_dim=hid_dim, num_layers=num_layers, n_head=n_head, dropout=dropout, drop_path=drop_path, mlp_ratio=mlp_ratio)
     return model
 
