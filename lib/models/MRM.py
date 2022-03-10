@@ -50,6 +50,20 @@ class MLP_SE(nn.Module):
         x = ((x1.transpose(1,2))*x2).transpose(1,2)
         return x
 
+class PositionwiseFeedForward(nn.Module):
+    "Implements FFN equation."
+
+    def __init__(self, d_model, d_ff, dropout=0.1):
+        super(PositionwiseFeedForward, self).__init__()
+
+        self.w_1 = nn.Linear(d_model, d_ff)
+
+        self.w_2 = nn.Linear(d_ff, d_model)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x):
+        return self.w_2(self.dropout(F.relu(self.w_1(x))))
+
 
 class Block(nn.Module):
     def __init__(self, in_channel=17, hid_dim=128, n_head=4, dropout=0.5, drop_path=0.5, mlp_ratio=4.):
@@ -62,11 +76,11 @@ class Block(nn.Module):
         mlp_hidden_dim = int(hid_dim * mlp_ratio)
         self.GraAttenLayer = GraAttenLayer(hid_dim, attn, gcn, dropout)
         self.norm = nn.LayerNorm(hid_dim)
-        self.mlpse = MLP_SE(in_features=hid_dim, in_channel=self.in_channel, hidden_features=mlp_hidden_dim)
+        self.mlp = PositionwiseFeedForward(d_model=hid_dim, d_ff=mlp_hidden_dim, dropout=dropout)
 
     def forward(self, x):
         out = x + self.DropPath(self.GraAttenLayer(x, mask=self.mask))
-        out = out + self.DropPath(self.mlpse(self.norm(out)))
+        out = out + self.DropPath(self.mlp(self.norm(out)))
         return out
 
 class G_Block(nn.Module):
