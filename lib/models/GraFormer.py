@@ -159,6 +159,38 @@ class PositionwiseFeedForward(nn.Module):
     def forward(self, x):
         return self.w_2(self.dropout(F.relu(self.w_1(x))))
 
+class MLP_SE(nn.Module):
+    def __init__(self, in_features, in_channel, hidden_features=None):
+        super().__init__()
+        self.in_channel = in_channel
+        self.fc1 = nn.Linear(in_features, hidden_features)
+        self.fc2 = nn.Linear(hidden_features, in_features)
+
+        self.fc_down1 = nn.Linear(in_features*in_channel, in_channel)
+        self.fc_down2 = nn.Linear(in_channel, 2*in_channel)
+        self.fc_down3 = nn.Linear(2*in_channel, in_channel)
+        self.sigmoid = nn.Sigmoid()
+
+        self.act = nn.GELU()
+
+    def forward(self, x):
+        B = x.shape[0]
+        x = self.fc1(x)
+        x = self.act(x)
+        x = self.fc2(x)
+        ####up_stream
+        x1 = x
+        ### down_stream
+        x2 = x.view(B,-1)
+        x2 = self.fc_down1(x2).view(B,1,-1)
+        x2 = self.act(x2)
+        x2 = self.fc_down2(x2)
+        x2 = self.act(x2)
+        x2 = self.fc_down3(x2)
+        x2 = self.sigmoid(x2)
+        #### out
+        x = ((x1.transpose(1,2))*x2).transpose(1,2)
+        return x
 
 src_mask = torch.tensor([[[True, True, True, True, True, True, True, True, True, True, True,
                            True, True, True, True, True, True]]])
@@ -213,11 +245,11 @@ class Block(nn.Module):
         attn = MultiHeadedAttention(n_head, hid_dim)
         gcn = GraphNet(in_features=hid_dim, out_features=hid_dim, n_pts=adj.shape[0])
         self.GraAttenLayer = GraAttenLayer(hid_dim, attn, gcn, dropout)
-        self.gconv = _ResChebGC(adj=adj, input_dim=hid_dim, output_dim= hid_dim, hid_dim=hid_dim, p_dropout=dropout)
+        self.mlpse = MLP_SE(in_features=hid_dim, in_channel=adj.shape[0], hidden_features=4 * hid_dim)
 
     def forward(self, x):
         out = x + self.DropPath(self.GraAttenLayer(x, mask=self.mask))
-        out = out + self.DropPath(self.gconv(out))
+        out = out + self.DropPath(self.mlpse(out))
         return out
 
 class G_Block(nn.Module):
