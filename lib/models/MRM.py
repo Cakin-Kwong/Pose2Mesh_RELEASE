@@ -101,18 +101,13 @@ class Meshnet(nn.Module):
         self.num_joints = num_joints
         self.hid_dim = hid_dim
         self.n_layers = num_layers
-
-        init_vertices = torch.from_numpy(np.load(SMPL_MEAN_vertices)).unsqueeze(0)
-        self.register_buffer('init_vertices', init_vertices)
-
         self.up_feature = nn.Linear(hid_dim, hid_dim)
-        self.up_linear = nn.Linear(689 * 2, hid_dim)
 
 
         _GBlock = []
 
         for i in range(num_layers):
-            _GBlock.append(G_Block(in_channel=self.num_joints + 15, hid_dim=hid_dim, n_head=n_head, dropout=dropout, drop_path=drop_path, mlp_ratio=mlp_ratio))
+            _GBlock.append(G_Block(in_channel=self.num_joints, hid_dim=hid_dim, n_head=n_head, dropout=dropout, drop_path=drop_path, mlp_ratio=mlp_ratio))
 
         self.GBlock = nn.ModuleList(_GBlock)
 
@@ -120,7 +115,7 @@ class Meshnet(nn.Module):
         self.gelu = nn.GELU()
 
 
-        self.d_conv = nn.Conv1d(self.num_joints + 15, 3, kernel_size=3, padding=1)
+        self.d_conv = nn.Conv1d(self.num_joints, 3, kernel_size=3, padding=1)
         self.d_linear = nn.Linear(self.hid_dim, 6890)
 
 
@@ -129,10 +124,8 @@ class Meshnet(nn.Module):
         feature = feature.view(B, self.num_joints, -1)
         feature = self.up_feature(feature)
 
-        init_vertices = self.init_vertices.expand(B, -1, -1)
-        mean_smpl = self.up_linear(init_vertices.transpose(1,2).reshape(B, 15, -1))
 
-        x = torch.cat((feature, mean_smpl), dim=1)
+        x = feature
 
         for i in range(self.n_layers):
             x = x + self.GBlock[i](x)
@@ -144,7 +137,6 @@ class Meshnet(nn.Module):
         x_out = self.d_linear(x_out)
         x_out = self.gelu(x_out)
         x_out = self.d_conv(x_out).transpose(1, 2)
-        x_out = x_out + init_vertices
 
         return x_out
 
