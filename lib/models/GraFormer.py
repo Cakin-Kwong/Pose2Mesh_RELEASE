@@ -213,11 +213,11 @@ class Block(nn.Module):
         attn = MultiHeadedAttention(n_head, hid_dim)
         gcn = GraphNet(in_features=hid_dim, out_features=hid_dim, n_pts=adj.shape[0])
         self.GraAttenLayer = GraAttenLayer(hid_dim, attn, gcn, dropout)
-        self.gconv = _ResChebGC(adj=adj, input_dim=hid_dim, output_dim= hid_dim, hid_dim=hid_dim, p_dropout=dropout)
+        self.mlp = PositionwiseFeedForward(hid_dim, hid_dim * 4, dropout=dropout)
 
     def forward(self, x):
         out = x + self.DropPath(self.GraAttenLayer(x, mask=self.mask))
-        out = out + self.DropPath(self.gconv(out))
+        out = out + self.DropPath(self.mlp(out))
         return out
 
 class G_Block(nn.Module):
