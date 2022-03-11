@@ -74,21 +74,13 @@ class G_Block(nn.Module):
     def __init__(self, in_channel=17, hid_dim=128, n_head=4, dropout=0.2, drop_path=0.2, mlp_ratio=4.):
         super(G_Block, self).__init__()
         self.Block1 = Block(in_channel=in_channel, hid_dim=hid_dim, n_head=n_head, dropout=dropout, drop_path=drop_path, mlp_ratio=mlp_ratio)
-        self.Block2 = Block(in_channel=in_channel, hid_dim=hid_dim, n_head=n_head, dropout=dropout, drop_path=drop_path, mlp_ratio=mlp_ratio)
-        self.Block3 = Block(in_channel=in_channel, hid_dim=hid_dim, n_head=n_head, dropout=dropout, drop_path=drop_path, mlp_ratio=mlp_ratio)
-
-        self.conv1 = nn.Conv2d(3, 1, 1)
         self.norm = nn.LayerNorm(hid_dim)
         self.gelu = nn.GELU()
 
     def forward(self, x):
         # B = x.shape[0]
-        x1 = self.Block1(x).unsqueeze(1)
-        x2 = self.Block2(x).unsqueeze(1)
-        x3 = self.Block3(x).unsqueeze(1)
+        x1 = self.Block1(x)
 
-        x = torch.cat((x1,x2,x3), dim = 1)
-        x = self.conv1(x).squeeze(1)
         x = self.norm(x)
         x = self.gelu(x)
 
