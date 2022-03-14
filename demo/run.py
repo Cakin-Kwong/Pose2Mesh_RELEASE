@@ -76,9 +76,11 @@ def get_joint_setting(mesh_model, joint_category='human36'):
         (0, 7), (7, 8), (8, 9), (9, 10), (8, 11), (11, 12), (12, 13), (8, 14), (14, 15), (15, 16), (0, 1), (1, 2),
         (2, 3), (0, 4), (4, 5), (5, 6))
         flip_pairs = ((1, 4), (2, 5), (3, 6), (14, 11), (15, 12), (16, 13))
-        graph_Adj, graph_L, graph_perm,graph_perm_reverse = \
-            build_coarse_graphs(mesh_model.face, joint_num, skeleton, flip_pairs, levels=9)
-        model_chk_path = './experiment/pose2mesh_human36J_train_human36/final.pth.tar'
+        # graph_Adj, graph_L, graph_perm,graph_perm_reverse = \
+        #     build_coarse_graphs(mesh_model.face, joint_num, skeleton, flip_pairs, levels=9)
+        #model_chk_path = './experiment/pose2mesh_human36J_train_human36/final.pth.tar'
+        model_chk_path = './experiment/combine_mesh/checkpoint/final.pth.tar'
+
 
     elif joint_category == 'coco':
         joint_regressor = mesh_model.joint_regressor_coco
@@ -90,7 +92,9 @@ def get_joint_setting(mesh_model, joint_category='human36'):
         flip_pairs = ((1, 2), (3, 4), (5, 6), (7, 8), (9, 10), (11, 12), (13, 14), (15, 16))
         graph_Adj, graph_L, graph_perm, graph_perm_reverse = \
             build_coarse_graphs(mesh_model.face, joint_num, skeleton, flip_pairs, levels=9)
-        model_chk_path = './experiment/pose2mesh_cocoJ_train_human36_coco_muco/final.pth.tar'
+        #model_chk_path = './experiment/pose2mesh_cocoJ_train_human36_coco_muco/final.pth.tar'
+        model_chk_path = './experiment/3dpw_three_mesh/checkpoint/final.pth.tar'
+
 
     elif joint_category == 'smpl':
         joint_regressor = mesh_model.layer['neutral'].th_J_regressor.numpy().astype(np.float32)
@@ -117,7 +121,7 @@ def get_joint_setting(mesh_model, joint_category='human36'):
     else:
         raise NotImplementedError(f"{joint_category}: unknown joint set category")
 
-    model = models.pose2mesh_net.get_model(joint_num, graph_L)
+    model = models.pose2mesh_net.get_model(joint_num, skeleton)
     checkpoint = load_checkpoint(load_dir=model_chk_path)
     model.load_state_dict(checkpoint['model_state_dict'])
 
@@ -167,7 +171,7 @@ def optimize_cam_param(project_net, joint_input, crop_size):
     # estimate mesh, pose
     model.eval()
     pred_mesh, _ = model(joint_img)
-    pred_mesh = pred_mesh[:, graph_perm_reverse[:mesh_model.face.max() + 1], :]
+    #pred_mesh = pred_mesh[:, graph_perm_reverse[:mesh_model.face.max() + 1], :]
     pred_3d_joint = torch.matmul(joint_regressor, pred_mesh)
 
     out = {}
