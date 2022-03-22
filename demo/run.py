@@ -79,7 +79,7 @@ def get_joint_setting(mesh_model, joint_category='human36'):
         # graph_Adj, graph_L, graph_perm,graph_perm_reverse = \
         #     build_coarse_graphs(mesh_model.face, joint_num, skeleton, flip_pairs, levels=9)
         #model_chk_path = './experiment/pose2mesh_human36J_train_human36/final.pth.tar'
-        model_chk_path = './experiment/combine_mesh/checkpoint/final.pth.tar'
+        model_chk_path = './experiment/no_loss/checkpoint/final.pth.tar'
 
 
     elif joint_category == 'coco':
@@ -93,7 +93,7 @@ def get_joint_setting(mesh_model, joint_category='human36'):
         graph_Adj, graph_L, graph_perm, graph_perm_reverse = \
             build_coarse_graphs(mesh_model.face, joint_num, skeleton, flip_pairs, levels=9)
         #model_chk_path = './experiment/pose2mesh_cocoJ_train_human36_coco_muco/final.pth.tar'
-        model_chk_path = './experiment/3dpw_three_mesh/checkpoint/final.pth.tar'
+        model_chk_path = './experiment/new_3dpw_all/checkpoint/final.pth.tar'
 
 
     elif joint_category == 'smpl':
@@ -236,12 +236,14 @@ if __name__ == '__main__':
             orig_width, orig_height = orig_img.shape[:2]
         else:
             orig_width, orig_height = int(np.max(joint_input[:, 0]) * 1.5), int(np.max(joint_input[:, 1]) * 1.5)
-            orig_img = np.zeros((orig_height, orig_width,3))
+            orig_img = np.ones((orig_height, orig_width,3)) * 255
+
 
         out = optimize_cam_param(project_net, joint_input, crop_size=virtual_crop_size)
 
         # vis mesh
-        color = colorsys.hsv_to_rgb(np.random.rand(), 0.5, 1.0)
+        #color = colorsys.hsv_to_rgb(np.random.rand(), 0.5, 1.0)
+        color = colorsys.hsv_to_rgb(0, 0.5, 1.0)
         rendered_img = render(out, orig_height, orig_width, orig_img, mesh_model.face, color)  # s[idx])
         cv2.imwrite(output_path + f'demo_mesh.png', rendered_img)
 
