@@ -20,6 +20,7 @@ from renderer import Renderer
 from vis import vis_2d_keypoints, vis_coco_skeleton
 from _mano import MANO
 from smpl import SMPL
+from ptflops.flops_counter import get_model_complexity_info
 
 def convert_crop_cam_to_orig_img(cam, bbox, img_width, img_height):
     '''
@@ -171,6 +172,7 @@ def optimize_cam_param(project_net, joint_input, crop_size):
     # estimate mesh, pose
     model.eval()
     pred_mesh, _ = model(joint_img)
+    print(joint_img.shape)
     #pred_mesh = pred_mesh[:, graph_perm_reverse[:mesh_model.face.max() + 1], :]
     pred_3d_joint = torch.matmul(joint_regressor, pred_mesh)
 
@@ -224,6 +226,9 @@ if __name__ == '__main__':
         mesh_model = SMPL()
     model, joint_regressor, joint_num, skeleton, graph_L, graph_perm_reverse = get_joint_setting(mesh_model, joint_category=joint_set)
     model = model.cuda()
+    flops, params = get_model_complexity_info(model, (19,2), as_strings=True, print_per_layer_stat=True)
+    print('Flops:{}'.format(flops))
+    print('Params:'+params)
     joint_regressor = torch.Tensor(joint_regressor).cuda()
 
     if input_path != '.':  # user specific input
@@ -238,7 +243,7 @@ if __name__ == '__main__':
             orig_width, orig_height = int(np.max(joint_input[:, 0]) * 1.5), int(np.max(joint_input[:, 1]) * 1.5)
             orig_img = np.ones((orig_height, orig_width,3)) * 255
 
-
+        print()
         out = optimize_cam_param(project_net, joint_input, crop_size=virtual_crop_size)
 
         # vis mesh
